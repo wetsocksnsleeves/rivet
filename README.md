@@ -91,10 +91,11 @@ replaces it with a link.
 rivet watch install
 ```
 
-This registers the watcher as a launchd agent that starts at login, and starts
-it now. `rivet watch stop`, `rivet watch start`, `rivet watch status` and
-`rivet watch uninstall` manage the agent. `rivet watch run` runs the watcher
-in the foreground instead.
+This registers the watcher as a service that starts at login, and starts it
+now: a launchd agent on macOS, or a systemd user service on Linux (logs go to
+the journal; read them with `journalctl --user -u rivet`). `rivet watch stop`,
+`rivet watch start`, `rivet watch status` and `rivet watch uninstall` manage
+the service. `rivet watch run` runs the watcher in the foreground instead.
 
 ## Check status
 

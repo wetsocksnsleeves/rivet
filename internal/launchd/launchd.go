@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/wetsocksnsleeves/rivet/internal/service"
 )
 
 // Label is the launchd label of the watcher agent.
@@ -110,6 +112,11 @@ func NewManager(program string, env map[string]string) (*Manager, error) {
 	}, nil
 }
 
+// Info describes the agent for display.
+func (m *Manager) Info() service.Info {
+	return service.Info{Manager: "launchd", File: m.PlistPath, Program: m.Agent.Program, Env: m.Agent.Env, Log: m.Agent.LogPath}
+}
+
 func (m *Manager) service() string { return m.Domain + "/" + m.Agent.Label }
 
 // Install writes the plist and loads the agent, which starts it. An agent
@@ -146,7 +153,7 @@ func (m *Manager) Uninstall() error {
 }
 
 // ErrNotInstalled is returned by Start when there is no plist.
-var ErrNotInstalled = errors.New("the watcher agent is not installed; run `rivet watch install`")
+var ErrNotInstalled = service.ErrNotInstalled
 
 // Start starts the installed agent, loading it first if needed.
 func (m *Manager) Start() error {
@@ -169,10 +176,7 @@ func (m *Manager) Stop() error {
 }
 
 // Status is what launchd knows about the agent.
-type Status struct {
-	Installed, Loaded, Running bool
-	PID                        int
-}
+type Status = service.Status
 
 // Status reports whether the agent is installed, loaded and running.
 func (m *Manager) Status() Status {

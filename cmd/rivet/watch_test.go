@@ -41,8 +41,8 @@ func (b *syncBuffer) String() string {
 // startup reconciliation is done.
 func startWatcher(t *testing.T, e *env) *syncBuffer {
 	t.Helper()
-	if runtime.GOOS != "darwin" {
-		t.Skip("the watcher is only supported on macOS")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("the watcher is only supported on macOS and Linux")
 	}
 	envCfg, err := config.OSEnv()
 	if err != nil {

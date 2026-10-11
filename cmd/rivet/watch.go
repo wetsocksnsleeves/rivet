@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -14,7 +15,9 @@ import (
 
 	"github.com/wetsocksnsleeves/rivet/internal/config"
 	"github.com/wetsocksnsleeves/rivet/internal/launchd"
+	"github.com/wetsocksnsleeves/rivet/internal/service"
 	"github.com/wetsocksnsleeves/rivet/internal/state"
+	"github.com/wetsocksnsleeves/rivet/internal/systemd"
 	"github.com/wetsocksnsleeves/rivet/internal/watch"
 )
 
@@ -59,7 +62,7 @@ It reads linked sets from state, so it runs from any directory.`,
 
 	install := &cobra.Command{
 		Use:   "install",
-		Short: "Install the watcher as a launchd agent that starts at login, and start it",
+		Short: "Install the watcher as a service that starts at login (launchd on macOS, systemd on Linux), and start it",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := newManager()
@@ -70,18 +73,19 @@ It reads linked sets from state, so it runs from any directory.`,
 				return err
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "Installed %s; the watcher is running and starts at login.\n", displayPath(m.PlistPath))
-			fmt.Fprintf(w, "It runs %s", displayPath(m.Agent.Program))
-			if d, ok := m.Agent.Env["XDG_STATE_HOME"]; ok {
+			info := m.Info()
+			fmt.Fprintf(w, "Installed %s; the watcher is running and starts at login.\n", displayPath(info.File))
+			fmt.Fprintf(w, "It runs %s", displayPath(info.Program))
+			if d, ok := info.Env["XDG_STATE_HOME"]; ok {
 				fmt.Fprintf(w, " with XDG_STATE_HOME=%s", displayPath(d))
 			}
-			fmt.Fprintf(w, " and logs to %s.\n", displayPath(m.Agent.LogPath))
+			fmt.Fprintf(w, " and logs to %s.\n", displayPath(info.Log))
 			return nil
 		},
 	}
 	uninstall := &cobra.Command{
 		Use:   "uninstall",
-		Short: "Stop the watcher agent and remove it from launchd",
+		Short: "Stop the watcher service and remove it",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := newManager()
@@ -91,13 +95,13 @@ It reads linked sets from state, so it runs from any directory.`,
 			if err := m.Uninstall(); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "Uninstalled the watcher agent.")
+			fmt.Fprintln(cmd.OutOrStdout(), "Uninstalled the watcher service.")
 			return nil
 		},
 	}
 	start := &cobra.Command{
 		Use:   "start",
-		Short: "Start the installed watcher agent",
+		Short: "Start the installed watcher service",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := newManager()
@@ -113,7 +117,7 @@ It reads linked sets from state, so it runs from any directory.`,
 	}
 	stop := &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the watcher agent until the next login or `rivet watch start`",
+		Short: "Stop the watcher service until the next login or `rivet watch start`",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := newManager()
@@ -121,7 +125,7 @@ It reads linked sets from state, so it runs from any directory.`,
 				return err
 			}
 			if !m.Status().Loaded {
-				fmt.Fprintln(cmd.OutOrStdout(), "The watcher agent is not running.")
+				fmt.Fprintln(cmd.OutOrStdout(), "The watcher service is not running.")
 				return nil
 			}
 			if err := m.Stop(); err != nil {
@@ -133,7 +137,7 @@ It reads linked sets from state, so it runs from any directory.`,
 	}
 	status := &cobra.Command{
 		Use:   "status",
-		Short: "Show whether the watcher agent is installed and running",
+		Short: "Show whether the watcher service is installed and running",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := newManager()
@@ -152,9 +156,20 @@ It reads linked sets from state, so it runs from any directory.`,
 	return cmd
 }
 
-// newManager builds the launchd manager for this executable. Tests replace
-// it to avoid calling launchctl.
-var newManager = func() (*launchd.Manager, error) {
+// watcherService runs `rivet watch run` in the background through the OS
+// service manager.
+type watcherService interface {
+	Install() error
+	Uninstall() error
+	Start() error
+	Stop() error
+	Status() service.Status
+	Info() service.Info
+}
+
+// newManager builds the service manager for this executable and OS. Tests
+// replace it to avoid calling launchctl or systemctl.
+var newManager = func() (watcherService, error) {
 	program, err := os.Executable()
 	if err != nil {
 		return nil, err
@@ -165,26 +180,32 @@ var newManager = func() (*launchd.Manager, error) {
 	if d, ok := os.LookupEnv("XDG_STATE_HOME"); ok && d != "" {
 		env["XDG_STATE_HOME"] = d
 	}
-	return launchd.NewManager(program, env)
+	switch runtime.GOOS {
+	case "darwin":
+		return launchd.NewManager(program, env)
+	case "linux":
+		return systemd.NewManager(program, env)
+	}
+	return nil, fmt.Errorf("installing the watcher as a service is not supported on %s; run `rivet watch run` instead", runtime.GOOS)
 }
 
-func printWatchStatus(w io.Writer, m *launchd.Manager, stateDir string) {
-	s := m.Status()
-	agent := "not installed (run `rivet watch install`)"
+func printWatchStatus(w io.Writer, m watcherService, stateDir string) {
+	s, info := m.Status(), m.Info()
+	installed := "not installed (run `rivet watch install`)"
 	if s.Installed {
-		agent = "installed (" + displayPath(m.PlistPath) + ")"
+		installed = "installed (" + displayPath(info.File) + ")"
 	}
-	launchdState := "not loaded"
+	managerState := "not loaded"
 	switch {
 	case s.Running:
-		launchdState = fmt.Sprintf("running (pid %d)", s.PID)
+		managerState = fmt.Sprintf("running (pid %d)", s.PID)
 	case s.Loaded:
-		launchdState = "loaded, not running"
+		managerState = "loaded, not running"
 	}
-	fmt.Fprintf(w, "agent:    %s\n", agent)
-	fmt.Fprintf(w, "launchd:  %s\n", launchdState)
+	fmt.Fprintf(w, "service:  %s\n", installed)
+	fmt.Fprintf(w, "%-10s%s\n", info.Manager+":", managerState)
 	fmt.Fprintf(w, "watcher:  %s\n", strings.TrimSuffix(watcherLine(stateDir), "."))
-	fmt.Fprintf(w, "log:      %s\n", displayPath(m.Agent.LogPath))
+	fmt.Fprintf(w, "log:      %s\n", displayPath(info.Log))
 }
 
 // watcherLine is the last line of status.

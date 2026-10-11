@@ -1,0 +1,9 @@
+[Unit]
+Description=rivet watcher: keeps linked sets and their dests in sync
+
+[Service]
+ExecStart="/home/me/.local/bin/rivet" watch run
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

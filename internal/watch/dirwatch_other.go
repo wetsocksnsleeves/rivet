@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !linux
 
 package watch
 
@@ -10,7 +10,7 @@ type dirWatcher struct {
 }
 
 func newDirWatcher() (*dirWatcher, error) {
-	return nil, errors.New("the watcher is only supported on macOS")
+	return nil, errors.New("the watcher is only supported on macOS and Linux")
 }
 
 func (w *dirWatcher) Add(string) error { return nil }

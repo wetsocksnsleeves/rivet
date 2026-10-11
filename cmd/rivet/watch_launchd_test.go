@@ -54,7 +54,7 @@ func fakeManager(t *testing.T) (*launchd.Manager, *fakeLaunchctl) {
 	}
 	m.Ctl = ctl
 	old := newManager
-	newManager = func() (*launchd.Manager, error) { return m, nil }
+	newManager = func() (watcherService, error) { return m, nil }
 	t.Cleanup(func() { newManager = old })
 	return m, ctl
 }
@@ -120,7 +120,7 @@ func TestWatchStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "agent:    not installed") || !strings.Contains(out, "launchd:  not loaded") {
+	if !strings.Contains(out, "service:  not installed") || !strings.Contains(out, "launchd:  not loaded") {
 		t.Errorf("status before install:\n%s", out)
 	}
 	if _, err := run(t, "watch", "install"); err != nil {
@@ -130,7 +130,7 @@ func TestWatchStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "agent:    installed (~/Library/LaunchAgents/") || !strings.Contains(out, "launchd:  running (pid 4121)") {
+	if !strings.Contains(out, "service:  installed (~/Library/LaunchAgents/") || !strings.Contains(out, "launchd:  running (pid 4121)") {
 		t.Errorf("status after install:\n%s", out)
 	}
 }

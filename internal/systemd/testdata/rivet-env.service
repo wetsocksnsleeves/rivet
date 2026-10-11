@@ -1,0 +1,11 @@
+[Unit]
+Description=rivet watcher: keeps linked sets and their dests in sync
+
+[Service]
+ExecStart="/home/me/code/a \"b\" 100%%/$$HOME\\rivet" watch run
+Environment="A=50%% $x"
+Environment="XDG_STATE_HOME=/tmp/state"
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

@@ -138,11 +138,3 @@ func (w *dirWatcher) read() {
 		}
 	}
 }
-
-type pathError struct {
-	path string
-	err  error
-}
-
-func (e *pathError) Error() string { return e.path + ": " + e.err.Error() }
-func (e *pathError) Unwrap() error { return e.err }

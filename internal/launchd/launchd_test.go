@@ -103,7 +103,7 @@ func newTestManager(t *testing.T) (*Manager, *fakeLaunchctl) {
 	}, ctl
 }
 
-const service = "gui/501/" + Label
+const svc = "gui/501/" + Label
 
 func assertCalls(t *testing.T, ctl *fakeLaunchctl, want ...string) {
 	t.Helper()
@@ -143,7 +143,7 @@ func TestInstallReloadsLoadedAgent(t *testing.T) {
 	if err := m.Install(); err != nil {
 		t.Fatal(err)
 	}
-	assertCalls(t, ctl, "bootout "+service, "bootstrap gui/501 "+Label+".plist")
+	assertCalls(t, ctl, "bootout "+svc, "bootstrap gui/501 "+Label+".plist")
 }
 
 func TestUninstall(t *testing.T) {
@@ -155,7 +155,7 @@ func TestUninstall(t *testing.T) {
 	if err := m.Uninstall(); err != nil {
 		t.Fatal(err)
 	}
-	assertCalls(t, ctl, "bootout "+service)
+	assertCalls(t, ctl, "bootout "+svc)
 	if _, err := os.Stat(m.PlistPath); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("plist not removed: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestStartLoadedButNotRunning(t *testing.T) {
 	if err := m.Start(); err != nil {
 		t.Fatal(err)
 	}
-	assertCalls(t, ctl, "kickstart "+service)
+	assertCalls(t, ctl, "kickstart "+svc)
 }
 
 func TestStop(t *testing.T) {
@@ -214,7 +214,7 @@ func TestStop(t *testing.T) {
 	if err := m.Stop(); err != nil {
 		t.Fatal(err)
 	}
-	assertCalls(t, ctl, "bootout "+service)
+	assertCalls(t, ctl, "bootout "+svc)
 	ctl.calls = nil
 	if err := m.Stop(); err != nil {
 		t.Fatalf("second Stop: %v", err)

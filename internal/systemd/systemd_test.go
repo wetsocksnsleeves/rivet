@@ -194,3 +194,21 @@ func TestParseShow(t *testing.T) {
 		t.Errorf("parseShow = %v", got)
 	}
 }
+
+func TestNewManagerUnitPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, tc := range []struct{ xdg, want string }{
+		{"", filepath.Join(home, ".config", "systemd", "user", Unit)},
+		{"/xdg", filepath.Join("/xdg", "systemd", "user", Unit)},
+	} {
+		t.Setenv("XDG_CONFIG_HOME", tc.xdg)
+		m, err := NewManager("/bin/rivet", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m.UnitPath != tc.want {
+			t.Errorf("XDG_CONFIG_HOME=%q: UnitPath = %q, want %q", tc.xdg, m.UnitPath, tc.want)
+		}
+	}
+}

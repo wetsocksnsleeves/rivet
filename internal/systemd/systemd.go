@@ -83,7 +83,7 @@ type Manager struct {
 
 // NewManager returns a Manager for the watcher service of the current user.
 func NewManager(program string, env map[string]string) (*Manager, error) {
-	dir, err := os.UserConfigDir()
+	dir, err := configDir()
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +92,19 @@ func NewManager(program string, env map[string]string) (*Manager, error) {
 		UnitPath: filepath.Join(dir, "systemd", "user", Unit),
 		Ctl:      execSystemctl{},
 	}, nil
+}
+
+// configDir is where systemd looks for user configuration: XDG_CONFIG_HOME,
+// or ~/.config. os.UserConfigDir differs from it outside Linux.
+func configDir() (string, error) {
+	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
+		return d, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config"), nil
 }
 
 // Info describes the service for display.
